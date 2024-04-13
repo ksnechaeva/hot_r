@@ -24,7 +24,6 @@ hotels = dict()
 for item in top_10_list:
     hotels[item.a.get_text().strip()] = item.a.attrs['href']
 
-
 hotels_info = {}
 miss_desc = []
 for hotel_name, href in hotels.items():
