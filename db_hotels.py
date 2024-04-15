@@ -2,17 +2,15 @@ import requests
 from bs4 import BeautifulSoup
 import os
 import time
+import json
 from openai import OpenAI
 os.environ['OPENAI_API_KEY'] = "sk-wIcqz35tV9EHW6aR9lMHQVYmMOq30iAI"
 os.environ['OPENAI_API_BASE'] = "https://api.proxyapi.ru/openai/v1"
-from langchain.chat_models import ChatOpenAI
 from langchain.schema import Document
 from langchain_community.vectorstores import FAISS
 from langchain_openai import OpenAIEmbeddings
-from langchain.chains.combine_documents import create_stuff_documents_chain
-from langchain_core.prompts import ChatPromptTemplate
-from langchain.chains import create_retrieval_chain
 
+#this process should be run in env with httpx==0.27.0
 top_100_url = "https://tophotels.ru/club/ratings/top100"
 r = requests.get(top_100_url)
 soup = BeautifulSoup(r.text, "html.parser")
@@ -63,14 +61,12 @@ for hotel_name, href in hotels.items():
         print(f"Error processing {hotel_name}: {e}")
 
 for hotel_name, info in hotels_info.items():
-    combined_text = info['description'] + " " + " ".join(info['reviews'])
+    # Check if the description is None and replace it with an empty string if so
+    description = info['description'] if info['description'] is not None else ""
+    # Combine the description with all reviews
+    combined_text = description + " " + " ".join(info['reviews'])
     hotels_info[hotel_name]['combined_text'] = combined_text
 
-embeddings = OpenAIEmbeddings()
-docs = [
-    Document(page_content=info['combined_text'], metadata={"name": hotel_name})
-    for hotel_name, info in hotels_info.items()
-    if 'combined_text' in info
-]
-vector = FAISS.from_documents(docs, embeddings)
-vector.save_local("faiss_index")
+with open('hotels_info.json', 'w', encoding='utf-8') as f:
+    json.dump(hotels_info, f, ensure_ascii=False, indent=4)
+
