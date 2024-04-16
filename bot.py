@@ -12,7 +12,6 @@ from langchain.chains import create_retrieval_chain
 from langchain.schema import StrOutputParser
 # Set your environment variables securely
 
-os.environ['OPENAI_API_KEY'] = "sk-wIcqz35tV9EHW6aR9lMHQVYmMOq30iAI"
 os.environ['OPENAI_API_BASE'] = "https://api.proxyapi.ru/openai/v1"
 index_path = "/Users/a0000/Desktop/faiss_index"  # Adjust the path as needed
 embeddings = OpenAIEmbeddings()
@@ -59,7 +58,7 @@ async def handle_query(update: Update, context):
 
 
 if __name__ == '__main__':
-    application = ApplicationBuilder().token('7177632813:AAEGgG6OG9kXE66GpSjXeYjJsb30BxirkR0').build()
+    application = ApplicationBuilder().token('token').build()
     
     # Define handlers
     start_handler = CommandHandler('start', start)
