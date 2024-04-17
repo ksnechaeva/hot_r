@@ -12,8 +12,9 @@ from langchain.chains import create_retrieval_chain
 from langchain.schema import StrOutputParser
 # Set your environment variables securely
 
+os.environ['OPENAI_API_KEY'] = "sk-wIcqz35tV9EHW6aR9lMHQVYmMOq30iAI"
 os.environ['OPENAI_API_BASE'] = "https://api.proxyapi.ru/openai/v1"
-index_path = "/Users/a0000/Desktop/faiss_index"  # Adjust the path as needed
+index_path = "/Users/a0000/hot_r-2/faiss_index"  # Adjust the path as needed
 embeddings = OpenAIEmbeddings()
 new_db = FAISS.load_local(index_path, embeddings, allow_dangerous_deserialization=True)
 
@@ -31,7 +32,7 @@ prompt = ChatPromptTemplate.from_messages([
 ])
 
 async def start(update: Update, context):
-    await context.bot.send_message(chat_id=update.effective_chat.id, text="Hi, are you ready to choose plan your perfect vacation?! Please write your preferences below")
+    await context.bot.send_message(chat_id=update.effective_chat.id, text="aare you ready to choose plan your perfect vacation? Please, list your preference")
 
 async def handle_query(update: Update, context):
     query = update.message.text
@@ -42,8 +43,9 @@ async def handle_query(update: Update, context):
 
         for n, (doc, score) in enumerate(docs_and_scores, start=1):
             hotel_name = doc.metadata['name'].split()[0]  # Adjust this based on your actual data structure
+            #justification = generate_justification(doc.metadata['name'].split()[0])
             search_results.append(f"{n}) Hotel {hotel_name} with score {score:.2f}")
-
+            #                      \nJustification: {justification}")
         # If no hotels found, summarize the results differently
         if search_results:
             response = "\n".join(search_results)
@@ -56,9 +58,33 @@ async def handle_query(update: Update, context):
     # Send the response back to the user
     await context.bot.send_message(chat_id=update.effective_chat.id, text=response)
 
+def generate_justification(description):
+    context = "Consider the amenities and services offered by the hotel."
+    input_text = f"The hotel description says: '{description}'. How would this be a good choice?"
+    prompt = {
+        "system": template.format(context=context, input=""),
+        "human": human_template.format(text=input_text)
+    }
+    
+    # Assuming llm.generate returns a complex object with a 'text' or 'content' attribute
+    response = llm.generate(prompt)
+    
+    # Correct handling based on the actual response structure
+    # Example assumes response is a dictionary containing a 'text' key
+    if isinstance(response, dict) and 'text' in response:
+        return response['text']
+    elif isinstance(response, str):
+        return response
+    else:
+        # Log unexpected response format
+        print("Unexpected response format:", response)
+        return "An error occurred while generating the justification."
+
+
+
 
 if __name__ == '__main__':
-    application = ApplicationBuilder().token('token').build()
+    application = ApplicationBuilder().token('7177632813:AAEGgG6OG9kXE66GpSjXeYjJsb30BxirkR0').build()
     
     # Define handlers
     start_handler = CommandHandler('start', start)
