@@ -84,7 +84,7 @@ def generate_justification(description):
 
 
 if __name__ == '__main__':
-    application = ApplicationBuilder().token('7177632813:AAEGgG6OG9kXE66GpSjXeYjJsb30BxirkR0').build()
+    application = ApplicationBuilder().token('token').build()
     
     # Define handlers
     start_handler = CommandHandler('start', start)

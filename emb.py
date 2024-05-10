@@ -1,11 +1,17 @@
 import os
 import json
 from openai import OpenAI
-os.environ['OPENAI_API_KEY'] = "sk-wIcqz35tV9EHW6aR9lMHQVYmMOq30iAI"
-os.environ['OPENAI_API_BASE'] = "https://api.proxyapi.ru/openai/v1"
 from langchain.schema import Document
 from langchain_community.vectorstores import FAISS
 from langchain_openai import OpenAIEmbeddings
+import yaml
+
+# load config
+with open("config.yaml", "r") as f:
+    config = yaml.safe_load(f.read())
+
+os.environ['OPENAI_API_KEY'] = config['OPENAI_API_KEY']
+os.environ['OPENAI_API_BASE'] = config['OPENAI_API_BASE']
 
 print('1')
 file_path = 'hotels_info_eng.json'

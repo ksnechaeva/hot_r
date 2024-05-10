@@ -1,44 +1,98 @@
-#evaluation of obtained model
-
 import os
-import getpass
-from langchain_community.vectorstores import FAISS
+import json
+import yaml
 from langchain_openai import ChatOpenAI
-from langchain_openai import OpenAIEmbeddings
+from langchain_core.language_models.chat_models import PromptValue, BaseMessage
+from llama_index.core import Document
+import nest_asyncio
+from llama_index.core import VectorStoreIndex
+from llama_index.core.evaluation import RelevancyEvaluator, FaithfulnessEvaluator, DatasetGenerator
+import nest_asyncio
+from tqdm.asyncio import tqdm_asyncio
+from langchain_core.prompts import PromptTemplate
+from langchain_core.output_parsers.string import StrOutputParser
 
-from langchain.chains.combine_documents import create_stuff_documents_chain
-from langchain_core.prompts import ChatPromptTemplate
-from langchain.chains import create_retrieval_chain
-from langchain.schema import StrOutputParser
-from llama_index.core.base.response.schema import Response
-from llama_index.core.evaluation import BaseEvaluator
-from llama_index.core.evaluation.base import EvaluationResult
-from llama_index.core.prompts.mixin import PromptDictType
-from llama_index.core.evaluation import RelevancyEvaluator
+nest_asyncio.apply()
 
-os.environ['OPENAI_API_KEY'] = "sk-wIcqz35tV9EHW6aR9lMHQVYmMOq30iAI"
-os.environ['OPENAI_API_BASE'] = "https://api.proxyapi.ru/openai/v1"
-index_path = "/Users/a0000/hot_r-2/faiss_index" 
-embeddings = OpenAIEmbeddings()
-new_db = FAISS.load_local(index_path, embeddings, allow_dangerous_deserialization=True)
+with open("config.yaml", "r") as f:
+    config = yaml.safe_load(f.read())
 
-class ResponseObject:
-    def __init__(self, response):
-        self.response = response
+os.environ['OPENAI_API_KEY'] = config['OPENAI_API_KEY']
+os.environ['OPENAI_API_BASE'] = config['OPENAI_API_BASE']
+
+with open('data/hotels.json', 'r') as f:
+    hotels = json.load(f)
+
+# Create a list of Document objects from the hotels data
+documents = []
+for hotel_name, hotel_desc in hotels.items():
+    documents.append(Document(text=f"Hotel name: {hotel_name}\n Description:\n{hotel_desc}"))
+
 
 llm = ChatOpenAI()
-evaluator = RelevancyEvaluator(llm=llm)
+index = VectorStoreIndex.from_documents(documents)
+evaluator = FaithfulnessEvaluator(llm=llm)
 
-query = str(input("Enter your search query: "))
+def eval_with_llm():
 
-docs_and_scores = new_db.similarity_search_with_score(query)
-search_results = []
+    results = []
+    template_q = """You are given hotel description.
+    Create 2 questions for each hotel on which it will be possible to answer using the description.
 
-for n, (doc, score) in enumerate(docs_and_scores, start=1):
-    hotel_name = doc.metadata['name'].split()[0] 
-    search_results.append(f"{n}) Hotel {hotel_name} with score {score:.2f}")
+    Hotel description:
+    {desc}
 
-response = "\n".join(search_results) if search_results else "No hotels found matching your criteria."
+    Question:"""
 
-eval_result = evaluator.evaluate_response(query=query, response=response)
-print(str(eval_result))
+    prompt_q = PromptTemplate.from_template(template_q)
+    query = prompt_q | llm | StrOutputParser()
+    eval_questions = query.invoke({"query": query, "desc": documents})
+    print(eval_questions)
+    for i in range(len(eval_questions)):
+        question = eval_questions[i]
+        response = query_engine.query(question)
+        response_str = response.response
+        source_node_contents = [node.get_content() for node in response.source_nodes]
+
+        for content in source_node_contents:
+            eval_result = evaluator.evaluate(
+                query=question,
+                response=response_str,
+                contexts=[content],
+            )
+            results.append(eval_result.score)
+            print(f'Question {i} : {eval_questions[i]}: Score = {eval_result.score}')
+
+    return sum(results)/len(results)
+
+
+def eval_with_dsg():
+
+    results = []
+    data_generator = DatasetGenerator.from_documents(
+        documents=documents,
+        llm=llm,
+        num_questions_per_chunk=2,
+    )
+    eval_questions = data_generator.generate_questions_from_nodes()
+
+    for i in range(len(eval_questions)):
+        question = eval_questions[i]
+        response = query_engine.query(question)
+        response_str = response.response
+        source_node_contents = [node.get_content() for node in response.source_nodes]
+
+        for content in source_node_contents:
+            eval_result = evaluator.evaluate(
+                query=question,
+                response=response_str,
+                contexts=[content],
+            )
+            results.append(eval_result.score)
+            # print(f'Question {i} : {eval_questions[i]}: Score = {eval_result.score}')
+
+    return sum(results)/len(results)
+
+#score_1= eval_with_dsg()
+score_2 = eval_with_llm()
+print(score_2)
