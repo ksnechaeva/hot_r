@@ -32,6 +32,7 @@ for hotel_name, hotel_desc in hotels.items():
 llm = ChatOpenAI()
 index = VectorStoreIndex.from_documents(documents)
 evaluator = FaithfulnessEvaluator(llm=llm)
+query_engine = index.as_query_engine()
 
 def eval_with_llm():
 
