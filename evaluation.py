@@ -33,11 +33,10 @@ for hotel_name, hotel_desc in hotels.items():
 llm = ChatOpenAI(model='gpt-3.5-turbo-0125')
 llm = ChatOpenAI(model='gpt-3.5-turbo-0125')
 index = VectorStoreIndex.from_documents(documents)
+evaluator = FaithfulnessEvaluator(llm=llm)
 
-query_engine = index.as_query_engine()
+def eval_with_llm():
 
-def eval_with_pr(llm):
-    evaluator = FaithfulnessEvaluator(llm=llm)
     results = []
     template_q = """You are given a hotel description.
     Create question for each hotel on which it will be possible to answer using the description.
