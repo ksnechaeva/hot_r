@@ -20,10 +20,12 @@ with open(file_path, 'r', encoding='utf-8') as file:
     hotels_info = json.load(file)
 
 embeddings = OpenAIEmbeddings()
+
 docs = [
     Document(page_content=info['combined_text'], metadata={"name": hotel_name})
     for hotel_name, info in hotels_info.items()
     if 'combined_text' in info
 ]
+
 vector = FAISS.from_documents(docs, embeddings)
 vector.save_local("faiss_index")
