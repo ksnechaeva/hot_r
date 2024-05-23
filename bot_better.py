@@ -147,7 +147,7 @@ def create_index():
 
     return index, hotels_info
 
-def create_index_rev():
+#def create_index_rev():
     # load the data from data/hotels_info_eng.json to a dict
     with open("data/hotels_rev.json", "r") as f:
         hotels = json.loads(f.read())
@@ -161,7 +161,7 @@ def create_index_rev():
             k = k[:k.find("*")+1]
         hotel_name = k.replace("\n", " ").replace("  ", " ").strip()
         hotels_rev[hotel_name] = hotel_r
-
+    
     # Load index from the disc if possible
     if "faiss_index" in os.listdir():
         index_r = FAISS.load_local("faiss_index", OpenAIEmbeddings(), allow_dangerous_deserialization=True)
@@ -175,10 +175,16 @@ def create_index_rev():
 
     return index_r, hotels_rev
 
+def load_reviews(hotel_name):
+    path = f"vector_databases/{hotel_name}.faiss"
+    index = FAISS.load_local(path, OpenAIEmbeddings(), allow_dangerous_deserialization=True)
+    return index
+
+
 index, hotels_info = create_index()
 #print(hotels_info)
 
-index_r, hotels_rev = create_index_rev()
+#index_r, hotels_rev = create_index_rev()
 
 justification_chain = create_justification_chain()
 comparison_chain = create_comp_chain()
@@ -415,17 +421,23 @@ async def qa_session(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user = update.message.from_user
     logger.info("Question from %s: %s", user.first_name, question)
     # get chosen hotel from the dialogue context
-    hotel_name = context.user_data["choise"]
+    hotel_name = context.user_data["choise"].split('*')[0] + '*'
     # get a description for a given hotel
     hotel_desc = hotels_info[hotel_name]
-    hotel_rev = hotels_rev[hotel_name]
+    #hotel_rev = hotels_rev[hotel_name]
+    index_r = load_reviews(hotel_name)
+    hotel_rev = index_r.similarity_search_with_score(question, k=3)
     # anwer the question
 
     resp = qa_chain_desc.invoke({"question": question, "hotel_name": hotel_name, "hotel_desc": hotel_desc})
     if "I can not answer" in resp:
+        index_r = load_reviews(hotel_name)
+        hotel_rev = index_r.similarity_search_with_score(question, k=3)
+        print(hotel_rev)
         # If the description doesn't suffice, try using reviews
         # resp = 'Switch to reviews'
         resp = qa_chain_rev.invoke({"question": question, "hotel_name": hotel_name, "hotel_rev": hotel_rev})
+        
 
     resp += "\n\nDo you have any other questions? If no, type /cancel."
 
