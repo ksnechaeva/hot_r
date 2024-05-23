@@ -90,7 +90,7 @@ def create_qa_chain_rev():
 def create_comp_chain():
     llm = ChatOpenAI()
     template = """You are given descriptions of two hotels and user's main preferences {query}.
-    Write structured, but brief comparison of given 2 hotels using hotels' descriptions, 
+    Write structured, but brief (2 sentences for each hotel and 1 conclusion sentence) comparison of given 2 hotels using hotels' descriptions, 
     highlighting benefits and drawbacks mainly based on the user's query.
     Hotel1 name: {hotel_name1}
     Hotel2 name: {hotel_name2}
