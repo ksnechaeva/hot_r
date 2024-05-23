@@ -1,6 +1,7 @@
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters
 import os
+import yaml
 import getpass
 from langchain_community.vectorstores import FAISS
 from langchain_openai import ChatOpenAI
@@ -11,9 +12,13 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain.chains import create_retrieval_chain
 from langchain.schema import StrOutputParser
 # Set your environment variables securely
+# load config
+with open("config.yaml", "r") as f:
+    config = yaml.safe_load(f.read())
 
-os.environ['OPENAI_API_KEY'] = "sk-wIcqz35tV9EHW6aR9lMHQVYmMOq30iAI"
-os.environ['OPENAI_API_BASE'] = "https://api.proxyapi.ru/openai/v1"
+# set openai config
+os.environ['OPENAI_API_KEY'] = config['OPENAI_API_KEY']
+os.environ['OPENAI_API_BASE'] = config['OPENAI_API_BASE']
 index_path = "/Users/a0000/hot_r-2/faiss_index"  # Adjust the path as needed
 embeddings = OpenAIEmbeddings()
 new_db = FAISS.load_local(index_path, embeddings, allow_dangerous_deserialization=True)

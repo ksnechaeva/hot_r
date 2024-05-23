@@ -4,8 +4,6 @@ import os
 import time
 import json
 from openai import OpenAI
-os.environ['OPENAI_API_KEY'] = "sk-wIcqz35tV9EHW6aR9lMHQVYmMOq30iAI"
-os.environ['OPENAI_API_BASE'] = "https://api.proxyapi.ru/openai/v1"
 from langchain.schema import Document
 from langchain_community.vectorstores import FAISS
 from langchain_openai import OpenAIEmbeddings

@@ -36,7 +36,7 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 # dialogue states
-USER_QUERY, USER_CHOISE, QA_SESSION = range(3)
+USER_QUERY, USER_CHOISE, QA_SESSION, QA_SESSION_COMP = range(4)
 
 # lowest acceptable similarity for retriever
 SIMILARITY_THRESH = 0.3
@@ -81,6 +81,38 @@ def create_qa_chain_rev():
     Hotel name: {hotel_name}
 
     Hotel reviews: {hotel_rev}
+
+    Answer:"""
+    prompt = PromptTemplate.from_template(template)
+    qa_chain = prompt | llm | StrOutputParser()
+    return qa_chain
+
+def create_comp_chain():
+    llm = ChatOpenAI()
+    template = """You are given descriptions of two hotels and user's main preferences {query}.
+    Write structured, but brief comparison of given 2 hotels using hotels' descriptions, 
+    highlighting benefits and drawbacks mainly based on the user's query.
+    Hotel1 name: {hotel_name1}
+    Hotel2 name: {hotel_name2}
+    Hotel1 description: {desc1}
+    Hotel2 description: {desc2}
+
+    Answer:"""
+    prompt = PromptTemplate.from_template(template)
+    qa_chain = prompt | llm | StrOutputParser()
+    return qa_chain
+
+def create_qa_comp_chain():
+    llm = ChatOpenAI()
+    template = """You are given user question and descriptions of two hotels.
+    Answer the question using descriptions or it you feel that you can not answer type "I can't answer".
+    Take into account that question may address either one of the hotels or both, so you need to choose appropriate option.
+    Question: {question}
+
+    Hotel1 name: {hotel_name1}
+    Hotel2 name: {hotel_name2}
+    Hotel1 description: {desc1}
+    Hotel2 description: {desc2}
 
     Answer:"""
     prompt = PromptTemplate.from_template(template)
@@ -144,10 +176,13 @@ def create_index_rev():
     return index_r, hotels_rev
 
 index, hotels_info = create_index()
-print(hotels_info)
+#print(hotels_info)
 
 index_r, hotels_rev = create_index_rev()
+
 justification_chain = create_justification_chain()
+comparison_chain = create_comp_chain()
+comparison_qa_chain = create_qa_comp_chain()
 
 qa_chain_desc = create_qa_chain()
 qa_chain_rev = create_qa_chain_rev()
@@ -161,6 +196,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 async def user_query(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.message.text
+    # save query for future comparison 
+    context.user_data['query'] = query
     # log user activity
     user = update.message.from_user
     logger.info("Query from %s: %s", user.first_name, update.message.text)
@@ -168,7 +205,7 @@ async def user_query(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     # find relevant hotels
     # argument k controls number of documents retireved
     docs = index.similarity_search_with_score(query, k=2)
-
+    context.user_data['rel_hot'] = docs
     # create justification for every hotel found
     justification = {}
     for doc in docs:
@@ -185,7 +222,7 @@ async def user_query(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         return USER_QUERY
 
     # prepare repy keyboard with list of hotel names
-    reply_keyboard = [list(justification.keys())]
+    reply_keyboard = [list(justification.keys()), ['I want the comparison of these hotels']]
 
     # format the reply according to markdownV2 style
     reply = escape_markdown("Here are some options I found. Please choose one of the following:\n\n", version=2)
@@ -206,28 +243,171 @@ async def user_query(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     )
     return USER_CHOISE
 
+
 async def user_choise(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     # choise is supposed to be one of the hotels offered in the previous step
     choise = update.message.text
-    # if not, ask user again
-    choise = choise.split('*')[0]+'*'
-    if choise not in hotels_info:
-        await update.message.reply_text("Please pick one of the hotels or type /cancel")
-        return USER_CHOISE
+
+    if choise == "I want the comparison of these hotels":
+        user = update.message.from_user
+        logger.info("User %s choice: %s", user.first_name, choise)
+        print('kjk')
+        query = context.user_data.get('query', '')
+        # log user activity
+        #user = update.message.from_user
+        #logger.info("Query from %s: %s", user.first_name, 'comparison session')
+
+        docs = context.user_data.get('rel_hot')
+
+        hotels = []
+        desc = []
+        for doc in docs:
+            hotels.append(doc[0].metadata["name"])
+            desc.append(doc[0].page_content)
+
+
+        comp = comparison_chain.invoke({"query": query, "hotel_name1": hotels[0], "hotel_name2": hotels[1], "desc1": desc[0], "desc2": desc[1]})
+        await update.message.reply_text(comp)
+        
+        reply_keyboard = [hotels]
+        # format the reply according to markdownV2 style
+        reply = escape_markdown("type your question or choose hotel\n\n", version=2)
+
+        # reply to user and offer a keyboard
+        await update.message.reply_markdown_v2(
+            reply,
+            reply_markup=ReplyKeyboardMarkup(
+                reply_keyboard, one_time_keyboard=True, input_field_placeholder="Which hotel?"
+            ),
+        )
+
+        choise = update.message.text
+
+        if choise not in docs:
+            context.user_data["choise1"] = hotels[0]
+            context.user_data["choise2"] = hotels[1]
+            return QA_SESSION_COMP
+        else:
+            context.user_data["choise"] = choise
+            return USER_CHOISE
     
+    #elif choise not in hotels_info:
+        #await update.message.reply_text("Please pick one of the hotels or type /cancel")
+        #return COMPARISON
+    else:
+        choice_key = choise.split('*')[0] + '*'
+        if choice_key not in hotels_info:
+            await update.message.reply_text("Please pick one of the hotels or type /cancel")
+            return USER_CHOISE
+
+        user = update.message.from_user
+        logger.info("User %s choise: %s", user.first_name, choise)
+
+        context.user_data["choise"] = choise
+
+        await update.message.reply_photo(
+            photo=f"hotel_images/{choise.replace('/', '_').replace(' ', '_').split('*')[0][:-1]}.jpg",
+            caption=f"Great! Your choice is {choise}. Do you have any questions?",
+            reply_markup=ReplyKeyboardRemove()
+        )
+        return QA_SESSION
+
+#async def comparison(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    print('kjk')
+    query = context.user_data.get('query', '')
+    # log user activity
+    #user = update.message.from_user
+    #logger.info("Query from %s: %s", user.first_name, 'comparison session')
+
+    docs = context.user_data.get('rel_hot')
+
+    hotels = []
+    desc = []
+    for doc in docs:
+        hotels.append(doc[0].metadata["name"])
+        desc.append(doc[0].page_content)
+
+
+    comp = comparison_chain.invoke({"query": query, "hotel_name1": hotels[0], "hotel_name2": hotels[1], "desc1": desc[0], "desc2": desc[1]})
+    await update.message.reply_text(comp)
+    
+    reply_keyboard = [hotels]
+    # format the reply according to markdownV2 style
+    reply = escape_markdown("type your question or choose hotel\n\n", version=2)
+
+    # reply to user and offer a keyboard
+    await update.message.reply_markdown_v2(
+        reply,
+        reply_markup=ReplyKeyboardMarkup(
+            reply_keyboard, one_time_keyboard=True, input_field_placeholder="Which hotel?"
+        ),
+    )
+
+    choise = update.message.text
+
+    if choise not in docs:
+        context.user_data["choise1"] = hotels[0]
+        context.user_data["choise2"] = hotels[1]
+        return QA_SESSION_COMP
+    else:
+        context.user_data["choise"] = choise
+        return USER_CHOISE
+
+async def qa_session_comp(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    question = update.message.text
+    # or context.user_data["choise"]
     # log user activity
     user = update.message.from_user
-    logger.info("User %s choise: %s", user.first_name, choise)
+    logger.info("Question from %s: %s", user.first_name, question)
+    # get chosen hotel from the dialogue context
+    hotel_name1 = context.user_data["choise1"].split('*')[0] + '*'
+    hotel_name2 = context.user_data["choise2"].split('*')[0] + '*'
 
-    # save user choise to the dialogue context 
-    context.user_data["choise"] = choise
-    # send a photo of the hotel and invite to QA session
-    await update.message.reply_photo(
-        photo=f"hotel_images/{choise.replace('/', '_').replace(' ', '_').split('*')[0][:-1]}.jpg",
-        caption=f"Great! Your choise is {choise}. Do you have any questions?",
-        reply_markup=ReplyKeyboardRemove()
-    )
-    return QA_SESSION
+    hotels = []
+    hotels.append(hotel_name1)
+    hotels.append(hotel_name2)
+    # get a description for 2 given hotels
+    hotel_desc1 = hotels_info[hotel_name1]
+    #hotel_rev1 = hotels_rev[hotel_name1]
+    hotel_desc2 = hotels_info[hotel_name2]
+    #hotel_rev2 = hotels_rev[hotel_name2]
+    # anwer the question if it is a question
+    if question not in hotels:
+        resp = comparison_qa_chain.invoke({"question": question, "hotel_name1": hotels[0], "hotel_name2":hotels[1], "desc1": hotel_desc1, "desc2":hotel_desc2})
+        reply_keyboard = [hotels]
+        #resp += "\n\nDo you have any other questions regarding comparison. If no choose hotel for future qa-session or type /cancel"
+        # format the reply according to markdownV2 style
+        reply = escape_markdown('choose one ot the hotels or type new question', version=2)
+        await update.message.reply_text(resp)
+        # reply to user and offer a keyboard
+        await update.message.reply_markdown_v2(
+            reply,
+            reply_markup=ReplyKeyboardMarkup(
+                reply_keyboard, one_time_keyboard=True, input_field_placeholder="Which hotel would you prefer?"
+            ),
+        )
+
+    choise = update.message.text
+    #print(choise)
+    #print(hotels)
+    if choise not in hotels:
+        #print('ne tuda')
+        context.user_data["choise1"] = hotels[0]
+        context.user_data["choise2"] = hotels[1]
+        return QA_SESSION_COMP
+    else:
+
+        user = update.message.from_user
+        logger.info("User %s choise: %s", user.first_name, choise)
+
+        context.user_data["choise"] = choise
+
+        await update.message.reply_photo(
+            photo=f"hotel_images/{choise.replace('/', '_').replace(' ', '_').split('*')[0][:-1]}.jpg",
+            caption=f"Great! Your choice is {choise}. Do you have any questions?",
+            reply_markup=ReplyKeyboardRemove()
+        )
+        return QA_SESSION
 
 async def qa_session(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     question = update.message.text
@@ -252,6 +432,7 @@ async def qa_session(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.message.reply_text(resp)
     return QA_SESSION
 
+
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     # cancel and end the conversation
     await update.message.reply_text(
@@ -271,7 +452,9 @@ if __name__ == '__main__':
         states={
             USER_QUERY: [MessageHandler(filters.TEXT & (~filters.COMMAND), user_query)],
             USER_CHOISE: [MessageHandler(filters.TEXT & (~filters.COMMAND), user_choise)],
+            #COMPARISON: [MessageHandler(filters.TEXT & (~filters.COMMAND), comparison)],
             QA_SESSION: [MessageHandler(filters.TEXT & (~filters.COMMAND), qa_session)],
+            QA_SESSION_COMP: [MessageHandler(filters.TEXT & (~filters.COMMAND), qa_session_comp)],
         },
         fallbacks=[CommandHandler("cancel", cancel)],
     )
