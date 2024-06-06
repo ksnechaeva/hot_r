@@ -23,5 +23,5 @@
 * evaluation.ipynb : notebook for evalution performance with llama-index and selecting optimal parameters
 
 ## **To run**
-   1. ** Download all the data**
-   2. ** Run bot.py file**
+   1. **Download all the data**
+   2. **Run bot.py file**
