@@ -16,7 +16,7 @@
 * hotels_to_eng.py : translate db
 * emb.py : file with constructing vector database for hotels' descriptions using OpenAIEmbeddings
 * vec_db_reviews.py : file with constructing vector databases for hotels' reviews using OpenAIEmbeddings
-* * *upgraded_hotels_db.py* * : draft with constructing database with descriptions and compressed, structured reviews
+* _ _upgraded_hotels_db.py_ _ : draft with constructing database with descriptions and compressed, structured reviews
 
 ## **Bot**
 * bot.py : code with establishing tg bot
