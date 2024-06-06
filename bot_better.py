@@ -182,9 +182,6 @@ def load_reviews(hotel_name):
 
 
 index, hotels_info = create_index()
-#print(hotels_info)
-
-#index_r, hotels_rev = create_index_rev()
 
 justification_chain = create_justification_chain()
 comparison_chain = create_comp_chain()
@@ -255,13 +252,11 @@ async def user_choise(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     choise = update.message.text
 
     if choise == "I want the comparison of these hotels":
+        # log user activity
         user = update.message.from_user
         logger.info("User %s choice: %s", user.first_name, choise)
         print('kjk')
         query = context.user_data.get('query', '')
-        # log user activity
-        #user = update.message.from_user
-        #logger.info("Query from %s: %s", user.first_name, 'comparison session')
 
         docs = context.user_data.get('rel_hot')
 
@@ -318,46 +313,6 @@ async def user_choise(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
         )
         return QA_SESSION
 
-#async def comparison(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    print('kjk')
-    query = context.user_data.get('query', '')
-    # log user activity
-    #user = update.message.from_user
-    #logger.info("Query from %s: %s", user.first_name, 'comparison session')
-
-    docs = context.user_data.get('rel_hot')
-
-    hotels = []
-    desc = []
-    for doc in docs:
-        hotels.append(doc[0].metadata["name"])
-        desc.append(doc[0].page_content)
-
-
-    comp = comparison_chain.invoke({"query": query, "hotel_name1": hotels[0], "hotel_name2": hotels[1], "desc1": desc[0], "desc2": desc[1]})
-    await update.message.reply_text(comp)
-    
-    reply_keyboard = [hotels]
-    # format the reply according to markdownV2 style
-    reply = escape_markdown("type your question or choose hotel\n\n", version=2)
-
-    # reply to user and offer a keyboard
-    await update.message.reply_markdown_v2(
-        reply,
-        reply_markup=ReplyKeyboardMarkup(
-            reply_keyboard, one_time_keyboard=True, input_field_placeholder="Which hotel?"
-        ),
-    )
-
-    choise = update.message.text
-
-    if choise not in docs:
-        context.user_data["choise1"] = hotels[0]
-        context.user_data["choise2"] = hotels[1]
-        return QA_SESSION_COMP
-    else:
-        context.user_data["choise"] = choise
-        return USER_CHOISE
 
 async def qa_session_comp(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     question = update.message.text
@@ -464,7 +419,6 @@ if __name__ == '__main__':
         states={
             USER_QUERY: [MessageHandler(filters.TEXT & (~filters.COMMAND), user_query)],
             USER_CHOISE: [MessageHandler(filters.TEXT & (~filters.COMMAND), user_choise)],
-            #COMPARISON: [MessageHandler(filters.TEXT & (~filters.COMMAND), comparison)],
             QA_SESSION: [MessageHandler(filters.TEXT & (~filters.COMMAND), qa_session)],
             QA_SESSION_COMP: [MessageHandler(filters.TEXT & (~filters.COMMAND), qa_session_comp)],
         },
