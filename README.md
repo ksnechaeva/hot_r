@@ -1,13 +1,14 @@
 # Repository description:
 
 ## **Data**
-  ### Descriptions:
+
+### Descriptions:
 * data : contains 2 json files with hotels' reviews and descriptions ( english and russian version )
 * faiss_index : contains embedded db with english version of hotels' descriptions
-  ### Reviews:
+### Reviews:
 * hotel_databases folder : contains separate json files with reviews for each hotel
 * vector_databases folder : contains separate faiss indeces for reviews for each hotel 
-  ### Images:
+### Images:
 * hotel_images folder : contains images of all hotels
   
 ## **Data Collection Preprocessing**
